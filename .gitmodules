@@ -1,0 +1,3 @@
+[submodule "server"]
+	path = server
+	url = git@github.com:blackcoffee-study/moonbucks-menu-server.git

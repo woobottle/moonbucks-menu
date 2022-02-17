@@ -1,40 +1,26 @@
 import { INITIAL_CATEGORY } from "./constants/index.js";
-import { Store } from './store/index.js';
 import { $ } from './utils/dom.js';
 import {
   isEmpty,
   getMenuTemplate,
   renderMenusByFunction,
-  toggleMenuStatusInStore,
-  editMenuInStore,
-  removeMenuInStore,
-  setLocalStorage,
-  getLocalStorage,
 } from "./utils/index.js";
+import MenuApi from './apis/index.js';
 let currentCategory = INITIAL_CATEGORY;
-let menus;
 
 window.onload = () => {
-  setMenuUseLocalStorage();
   menuRender();
   preventSubmitInForm();
   setDocumentHandlers();
 };
 
-const setMenuUseLocalStorage = () => {
-  if (!getLocalStorage("menus")) {
-    setLocalStorage("menus", Store);
-  }
-
-  menus = getLocalStorage("menus");
-}
-
-const menuRender = () => {
+const menuRender = async () => {
   const $menuCount = $(".menu-count");
   const $menuList = $("#espresso-menu-list");
+  const menuItems = await MenuApi.getCategoryMenu(currentCategory);
 
-  $menuList.innerHTML = renderMenusByFunction(menus[currentCategory], getMenuTemplate);
-  $menuCount.textContent = `총 ${menus[currentCategory].length}개`;
+  $menuList.innerHTML = renderMenusByFunction(menuItems, getMenuTemplate);
+  $menuCount.textContent = `총 ${menuItems.length}개`;
 }
 
 const preventSubmitInForm = () => {
@@ -52,50 +38,53 @@ const setDocumentHandlers = () => {
 
 const formHandler = () => {
   const $form = $("#espresso-menu-form");
-  const addNewMenu = (event) => {
+  const addNewMenu = async (event) => {
     const $input = event.target["espressoMenuName"];
     const { value: newMenu } = $input;
-    const id = new Date().toISOString();
-
+    
     if (isEmpty(newMenu)) {
       alert("값을 입력해주세요");
       return;
     }
 
-    menus[currentCategory].push({ id, name: newMenu, status: "onSale" });
+    await MenuApi.addNewMenu(currentCategory, newMenu);
     $input.value = "";
-
-    setLocalStorage("menus", menus);
+    
     menuRender();
   };
+
   $form.addEventListener("submit", addNewMenu, false);
 };
 
 const menuListHandler = () => {
   const $menuList = $("#espresso-menu-list");
-  $menuList.addEventListener("click", (event) => {
+  $menuList.addEventListener("click", async (event) => {
     const { target } = event;
     const { parentNode } = target;
     const { menuId, menuName } = parentNode.dataset;
     const classList = target.classList;
 
     if (classList.contains("menu-sold-out-button")) {
-      toggleMenuStatusInStore(menus, currentCategory, menuId);
-      setLocalStorage("menus", menus);
+      await MenuApi.toggleMenu(currentCategory, menuId);
+      
       menuRender();
       return;
     }
 
     if (classList.contains("menu-edit-button")) {
-      editMenuInStore(menus, currentCategory, menuId, menuName);
-      setLocalStorage("menus", menus);
+      const newName = prompt("메뉴명을 수정하세요", menuName);
+      await MenuApi.editMenu(currentCategory, newName, menuId);
+      
       menuRender();
       return;
     }
 
     if (classList.contains("menu-remove-button")) {
-      removeMenuInStore(menus, currentCategory, menuId);
-      setLocalStorage("menus", menus);
+      const selectResult = confirm("정말 삭제하시겠습니까?");
+      if (selectResult) {
+        await MenuApi.removeMenu(currentCategory, menuId);
+      }
+
       menuRender();
       return;
     }
@@ -107,7 +96,7 @@ const menuListHandler = () => {
 const categoryHeaderHandler = () => {
   const categoryHeader = $("main > .wrapper > .heading >  h2");
   const navigationContainer = $("#espresso-menu-nav")
-  navigationContainer.addEventListener("click", (event) => {
+  const navigateTab = (event) => {
     const { target } = event;
     const { tagName } = target;
     if (tagName === "BUTTON") {
@@ -119,6 +108,8 @@ const categoryHeaderHandler = () => {
       categoryHeader.textContent = `${innerText} 메뉴 관리`;
 
       menuRender();
-    } 
-  })
+    }
+  };
+
+  navigationContainer.addEventListener("click", navigateTab)
 }
